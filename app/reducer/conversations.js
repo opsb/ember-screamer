@@ -11,7 +11,6 @@ function updateInMessages(messages, message) {
 }
 
 function addMessage(state, conversationId, { topic, id, body, status }) {
-  console.debug('addMessage', arguments);
   let path = [conversationId, 'messages'];
   let message = { id, body, status };
 
@@ -24,7 +23,6 @@ function joinConversationRequested(state, conversationId) {
 }
 
 function joinConversation(state, conversationId, { topic, payload }) {
-  console.log('joinConversation', arguments);
   return state.mergeDeep({
     [conversationId]: {
       status: 'succeeded',
