@@ -3,6 +3,7 @@ import Ember from 'ember';
 export default Ember.Component.extend({
   conversation: null,
   conversations: Ember.inject.service(),
+  body: null,
   loading: Ember.computed('conversation.status', function() {
     return this.get('conversation.status') !== 'succeeded';
   }),

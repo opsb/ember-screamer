@@ -13,8 +13,9 @@ export default Ember.Component.extend({
       let conversationsService = this.get('conversationsService');
       let { name } = this.getProperties('name');
       this.reset();
-      let conversationId = conversationsService.add(name);
-      this.get('router').transitionTo('conversation', conversationId);
+      conversationsService.add(name).then(conversationId => {
+        this.get('router').transitionTo('conversation', conversationId);
+      });
     }
   }
 });

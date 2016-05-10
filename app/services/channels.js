@@ -1,10 +1,26 @@
 import Ember from 'ember';
-import Channel from 'ember-screamer/lib/channel';
 
 const { service } = Ember.inject;
+const { getOwner } = Ember;
+
+function isFunction(functionToCheck) {
+  var getType = {};
+  return functionToCheck && getType.toString.call(functionToCheck) === '[object Function]';
+}
+
+function withLatency(callback) {
+  return new Ember.RSVP.Promise(resolve => {
+    if (!window.latency) {
+      resolve(callback());
+    } else {
+      setTimeout(() => {
+        resolve(callback());
+      }, window.latency);
+    }
+  });
+}
 
 export default Ember.Service.extend({
-  store: service('store'),
   socket: service('socket'),
 
   init() {
@@ -12,26 +28,63 @@ export default Ember.Service.extend({
     this._channels = {};
   },
 
-  join(topic, ops) {
-    let { socket, store } = this.getProperties('socket', 'store');
+  join(topic, handler, ...args) {
+    let channel = this.get('socket').channel(topic);
 
-    if (!this._channels[topic]) {
-      let channel = new Channel(socket, topic, store, ops);
-      this._channels[topic] = channel;
-      return channel.join();
-    }
-    else {
-      return Ember.RSVP.resolve();
-    }
+    let [namespace, name] = topic.split(":");
+    let owner = getOwner(this);
+    let namespaceHandler = owner.lookup(`channel:${namespace}`);
+    if (!namespaceHandler[handler]) throw new Error(`No handler found for topic: ${topic}`);
+    let topicHandler = this._withDefaults(this._initHandler(namespaceHandler[handler], args));
+
+    Object.keys(topicHandler).forEach(name => {
+      channel.on(name, topicHandler[name].bind(namespaceHandler));
+    });
+
+    this._channels[topic] = channel;
+
+    return new Ember.RSVP.Promise((resolve, reject) => {
+      channel.join()
+        .receive('ok', response => {
+          topicHandler.join.call(namespaceHandler, response);
+          resolve();
+        })
+        .receive('error', error => {
+          topicHandler.joinError.call(namespaceHandler, error);
+          reject(error);
+        });
+    });
   },
 
-  dispatch(topic, action) {
+  _initHandler(handler, args) {
+    return isFunction(handler) ? handler(...args) : handler;
+  },
+
+  _withDefaults(handler) {
+    return Object.assign({}, {
+      join: () => {},
+      joinError: () => {}
+    }, handler);
+  },
+
+  push(topic, handler, message) {
+    return withLatency(() => {
+      return new Ember.RSVP.Promise((resolve, reject) => {
+        this._getChannel(topic)
+          .push(handler, message)
+          .receive('ok', payload => resolve(payload))
+          .receive('error', reason => reject(reason));
+      });
+    });
+  },
+
+  _getChannel(topic) {
     let channel = this._channels[topic];
 
     if (!channel) {
-      throw new Error('Topic not subscribed to: ${topic}');
+      throw new Error(`Topic not subscribed to: ${topic}`);
     }
 
-    channel.dispatch(action);
+    return channel;
   }
 });

@@ -10,6 +10,10 @@ export default Ember.Route.extend({
 
     return conversations.subscribeToConversation(conversationId).then(() => {
       return conversations.getConversation(conversationId);
+    })
+    .catch(error => {
+      console.log(error);
+      this.transitionTo('application');
     });
   }
 });

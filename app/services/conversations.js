@@ -6,12 +6,14 @@ export default Ember.Service.extend({
   store: Ember.inject.service(),
 
   subscribeToList() {
-    return this.get('channels').join('conversations:index', ['addConversation']);
+    let store = this.get('store');
+
+    return this.get('channels').join('conversations:index', 'lobby');
   },
 
   subscribeToConversation(conversationId) {
     let topic = `conversations:${conversationId}`;
-    return this.get('channels').join(topic, ['addMessage']);
+    return this.get('channels').join(topic, 'conversation', conversationId);
   },
 
   getConversation(conversationId) {
@@ -20,6 +22,7 @@ export default Ember.Service.extend({
 
     function update() {
       let conversation = store.getState().conversations.getIn([conversationId]).toJS();
+      if (!conversation) throw new Error(`Conversation not found ${conversationId}`);
       subscription.set('content', conversation);
     }
 
@@ -45,18 +48,25 @@ export default Ember.Service.extend({
   },
 
   add(name) {
-    let topic = `conversations:index`;
-    let conversation = { type: 'addConversation', id: uuid.v4(), name };
+    let store = this.get('store');
+    let conversationId = uuid.v4();
+    let conversation = { id: conversationId, name };
 
-    this.get('channels').dispatch(topic, conversation);
-
-    return conversation.id;
+    store.dispatch({ type: 'ADD_CONVERSATION', status: 'requested', payload: conversation });
+    return this.get('channels')
+      .push('conversations:index', 'addConversation', conversation)
+      .then(response => {
+        store.dispatch({ type: 'ADD_CONVERSATION', status: 'succeeded', payload: response });
+        return conversation.id;
+      });
   },
 
   addMesage(conversationId, body) {
-    let topic = `conversations:${conversationId}`;
-    let message = { type: 'addMessage', id: uuid.v4(), body };
+    let store = this.get('store');
+    let message = { id: uuid.v4(), body, conversationId };
 
-    this.get('channels').dispatch(topic, message);
+    store.dispatch({ type: 'ADD_MESSAGE', status: 'requested', payload: message})
+    return this.get('channels').push(`conversations:${conversationId}`, 'addMessage', message)
+      .then(response => store.dispatch({type: 'ADD_MESSAGE', status: 'succeeded', payload: response}));
   }
 });

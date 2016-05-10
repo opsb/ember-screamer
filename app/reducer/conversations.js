@@ -10,23 +10,16 @@ function updateInMessages(messages, message) {
   }
 }
 
-function addMessage(state, conversationId, { topic, id, body, status }) {
-  let path = [conversationId, 'messages'];
-  let message = { id, body, status };
-
-  return state.updateIn(path, messages => updateInMessages(messages, message));
-}
-
-function joinConversationRequested(state, conversationId) {
-  let path = [conversationId, 'status'];
+function joinConversationRequested(state, action) {
+  let path = [action.conversationId, 'status'];
   return state.updateIn(path, () => 'requested');
 }
 
-function joinConversation(state, conversationId, { topic, payload }) {
+function joinConversationSucceeded(state, action) {
   return state.mergeDeep({
-    [conversationId]: {
+    [action.conversationId]: {
       status: 'succeeded',
-      messages: payload
+      messages: action.payload
     }
   });
 }
@@ -42,31 +35,38 @@ function joinConversationsIndex(state, action) {
   return Immutable.fromJS(conversations);
 }
 
-function addConversation(state, action) {
-  return state.mergeDeep({
-    [action.id]: {
-      id: action.id,
-      name: action.name
-    }
-  });
-}
+const handlers = {
+  joinConversationLobby(state, action) {
+    if (!action.payload) return state;
 
-function isHandled(action) {
-  return ['join', 'addConversation', 'addMessage'].indexOf(action.type) !== -1;
+    let conversations = action.payload.reduce((conversations, conversation) => {
+      conversations[conversation.id] = conversation;
+      return conversations;
+    }, {});
+
+    return Immutable.fromJS(conversations);
+  },
+
+  addConversation(state, action) {
+    return state.mergeDeep({
+      [action.payload.id]: Object.assign({status: action.status}, action.payload)
+    });
+  },
+
+  addMessage(state, action) {
+    let path = [action.payload.conversationId, 'messages'];
+    let message = Object.assign({status: action.status}, action.payload);
+
+    return state.updateIn(path, messages => updateInMessages(messages, message));
+  },
+
+  joinConversation(state, action) {
+    if (action.status === 'succeeded') return joinConversationSucceeded(state, action);
+    if (action.status === 'requested') return joinConversationRequested(state, action);
+  }
 }
 
 export default function reduce(state = Immutable.fromJS({}), action) {
-  let { type, status, topic } = action;
-
-  if (!isHandled(action)) return state;
-
-  if (topic === 'conversations:index' && type === 'join') return joinConversationsIndex(state, action);
-  if (topic === 'conversations:index' && type === 'addConversation') return addConversation(state, action);
-
-  let conversationId = action.topic.split(':')[1];
-
-  if (type === 'addMessage') return addMessage(state, conversationId, action);
-  if (type === 'join' && status === 'requested') return joinConversationRequested(state, conversationId);
-  if (type === 'join' && status === 'succeeded') return joinConversation(state, conversationId, action);
-  return state;
+  let handler = handlers[action.type.underscore().camelize()];
+  return handler ? handler(state, action) : state;
 }

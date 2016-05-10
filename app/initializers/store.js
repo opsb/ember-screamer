@@ -1,7 +1,7 @@
 import reduce from 'ember-screamer/reducer/reduce';
 import Redux from 'npm:redux';
 
-let { createStore } = Redux;
+let { createStore, compose, applyMiddleware } = Redux;
 
 class StoreProxy {
   constructor(store) {
@@ -13,8 +13,9 @@ class StoreProxy {
   }
 
   dispatch(...args) {
-    console.log('dispatch', ...args);
     let result = this._store.dispatch(...args);
+    console.log('dispatch', ...args);
+
     window.state = this.getState();
     return result;
   }
@@ -24,7 +25,14 @@ class StoreProxy {
   }
 }
 
-let store = new StoreProxy(createStore(reduce));
+let store = new StoreProxy(
+  createStore(
+    reduce,
+    compose(
+      window.devToolsExtension ? window.devToolsExtension() : f => f
+    )
+  )
+);
 // let store = createStore(reduce);
 
 export function initialize(application) {
