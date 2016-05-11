@@ -12,7 +12,7 @@ export default Ember.Object.extend({
 
     addConversation(response) {
       let store = this.get('store');
-      let action = { type: 'ADD_CONVERSATION', status: 'succeeded', payload: response };
+      let action = { type: 'ADD_CONVERSATION', status: 'succeeded2', payload: response };
       store.dispatch(action);
     }
   },

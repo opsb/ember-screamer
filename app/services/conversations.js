@@ -1,5 +1,6 @@
 import Ember from 'ember';
 import uuid from 'npm:node-uuid';
+import ReduxOptimist from 'npm:redux-optimist';
 
 export default Ember.Service.extend({
   channels: Ember.inject.service(),
@@ -51,12 +52,26 @@ export default Ember.Service.extend({
     let store = this.get('store');
     let conversationId = uuid.v4();
     let conversation = { id: conversationId, name };
+    let actionId = uuid();
 
-    store.dispatch({ type: 'ADD_CONVERSATION', status: 'requested', payload: conversation });
+    store.dispatch({
+      type: 'ADD_CONVERSATION',
+      status: 'requested',
+      payload: conversation,
+      optimist: {type: ReduxOptimist.BEGIN, id: actionId}
+    });
+
     return this.get('channels')
       .push('conversations:index', 'addConversation', conversation)
       .then(response => {
-        store.dispatch({ type: 'ADD_CONVERSATION', status: 'succeeded', payload: response });
+
+        store.dispatch({
+          type: 'ADD_CONVERSATION',
+          status: 'succeeded',
+          payload: response,
+          optimist: {type: ReduxOptimist.REVERT, id: actionId}
+        });
+
         return conversation.id;
       });
   },
@@ -64,9 +79,21 @@ export default Ember.Service.extend({
   addMesage(conversationId, body) {
     let store = this.get('store');
     let message = { id: uuid.v4(), body, conversationId };
+    let actionId = uuid();
 
-    store.dispatch({ type: 'ADD_MESSAGE', status: 'requested', payload: message})
+    store.dispatch({
+      type: 'ADD_MESSAGE',
+      status: 'requested',
+      payload: message,
+      optimist: {type: ReduxOptimist.BEGIN, id: actionId}
+    });
+
     return this.get('channels').push(`conversations:${conversationId}`, 'addMessage', message)
-      .then(response => store.dispatch({type: 'ADD_MESSAGE', status: 'succeeded', payload: response}));
+      .then(response => store.dispatch({
+        type: 'ADD_MESSAGE',
+        status: 'succeeded',
+        payload: response,
+        optimist: {type: ReduxOptimist.REVERT, id: actionId}
+      }));
   }
 });

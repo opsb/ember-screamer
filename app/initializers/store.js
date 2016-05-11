@@ -1,5 +1,6 @@
 import reduce from 'ember-screamer/reducer/reduce';
 import Redux from 'npm:redux';
+import optimist from 'npm:redux-optimist';
 
 let { createStore, compose, applyMiddleware } = Redux;
 
@@ -12,9 +13,9 @@ class StoreProxy {
     return this._store.getState();
   }
 
-  dispatch(...args) {
-    let result = this._store.dispatch(...args);
-    console.log('dispatch', ...args);
+  dispatch(action) {
+    let result = this._store.dispatch(action);
+    console.log('dispatch', action);
 
     window.state = this.getState();
     return result;
@@ -27,7 +28,7 @@ class StoreProxy {
 
 let store = new StoreProxy(
   createStore(
-    reduce,
+    optimist(reduce),
     compose(
       window.devToolsExtension ? window.devToolsExtension() : f => f
     )
