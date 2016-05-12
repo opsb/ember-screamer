@@ -12,7 +12,7 @@ export function initialize(application) {
   let store = createStore(
     optimist(reduce),
     compose(
-      dispatchChannelActions(channels),
+      applyMiddleware(dispatchChannelActions(channels)),
       window.devToolsExtension ? window.devToolsExtension() : f => f,
       applyMiddleware(createLogger()),
     )
