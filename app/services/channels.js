@@ -70,7 +70,7 @@ export default Ember.Service.extend({
   push(topic, handler, message) {
     return withLatency(() => {
       return new Ember.RSVP.Promise((resolve, reject) => {
-        this._getChannel(topic)
+        this.getChannel(topic)
           .push(handler, message)
           .receive('ok', payload => resolve(payload))
           .receive('error', reason => reject(reason));
@@ -78,7 +78,7 @@ export default Ember.Service.extend({
     });
   },
 
-  _getChannel(topic) {
+  getChannel(topic) {
     let channel = this._channels[topic];
 
     if (!channel) {

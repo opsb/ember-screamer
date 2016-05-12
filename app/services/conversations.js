@@ -1,14 +1,11 @@
 import Ember from 'ember';
 import uuid from 'npm:node-uuid';
-import ReduxOptimist from 'npm:redux-optimist';
 
 export default Ember.Service.extend({
   channels: Ember.inject.service(),
   store: Ember.inject.service(),
 
   subscribeToList() {
-    let store = this.get('store');
-
     return this.get('channels').join('conversations:index', 'lobby');
   },
 
@@ -50,50 +47,17 @@ export default Ember.Service.extend({
 
   add(name) {
     let store = this.get('store');
-    let conversationId = uuid.v4();
-    let conversation = { id: conversationId, name };
-    let actionId = uuid();
+    let conversation = { id: uuid.v4(), name };
+    let action = { type: 'ADD_CONVERSATION', payload: conversation, channel: `conversations:index` };
 
-    store.dispatch({
-      type: 'ADD_CONVERSATION',
-      status: 'requested',
-      payload: conversation,
-      optimist: {type: ReduxOptimist.BEGIN, id: actionId}
-    });
-
-    return this.get('channels')
-      .push('conversations:index', 'addConversation', conversation)
-      .then(response => {
-
-        store.dispatch({
-          type: 'ADD_CONVERSATION',
-          status: 'succeeded',
-          payload: response,
-          optimist: {type: ReduxOptimist.REVERT, id: actionId}
-        });
-
-        return conversation.id;
-      });
+    return store.dispatch(action).then(() => conversation.id);
   },
 
   addMesage(conversationId, body) {
     let store = this.get('store');
     let message = { id: uuid.v4(), body, conversationId };
-    let actionId = uuid();
+    let action = { type: 'ADD_MESSAGE', payload: message, channel: `conversations:${conversationId}` };
 
-    store.dispatch({
-      type: 'ADD_MESSAGE',
-      status: 'requested',
-      payload: message,
-      optimist: {type: ReduxOptimist.BEGIN, id: actionId}
-    });
-
-    return this.get('channels').push(`conversations:${conversationId}`, 'addMessage', message)
-      .then(response => store.dispatch({
-        type: 'ADD_MESSAGE',
-        status: 'succeeded',
-        payload: response,
-        optimist: {type: ReduxOptimist.REVERT, id: actionId}
-      }));
+    return store.dispatch(action).then(() => message.id);
   }
 });

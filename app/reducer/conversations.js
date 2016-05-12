@@ -1,4 +1,5 @@
 import Immutable from 'npm:immutable';
+import ReduxOptimist from 'npm:redux-optimist';
 
 function updateInMessages(messages, message) {
   let index = messages.findIndex(candidate => candidate.id === message.id);
@@ -35,6 +36,17 @@ function joinConversationsIndex(state, action) {
   return Immutable.fromJS(conversations);
 }
 
+function optimistStatus(action) {
+  if (!action.optimist) return 'succeeded';
+
+  switch (action.optimist.type) {
+    case ReduxOptimist.BEGIN: return 'requested';
+    case ReduxOptimist.COMMIT: return 'succeeded';
+    case ReduxOptimist.REVERT: return 'reverted';
+    default: return 'succeeded';
+  }
+}
+
 const handlers = {
   joinConversationLobby(state, action) {
     if (!action.payload) return state;
@@ -55,7 +67,8 @@ const handlers = {
 
   addMessage(state, action) {
     let path = [action.payload.conversationId, 'messages'];
-    let message = Object.assign({status: action.status}, action.payload);
+    let messageStatus = optimistStatus(action);
+    let message = Object.assign({status: messageStatus}, action.payload);
 
     return state.updateIn(path, messages => updateInMessages(messages, message));
   },
