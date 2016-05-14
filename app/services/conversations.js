@@ -1,48 +1,49 @@
 import Ember from 'ember';
 import uuid from 'npm:node-uuid';
+import 'ember-screamer/lib/rxjs/add/operator/as-ember-array';
+import 'ember-screamer/lib/rxjs/add/operator/as-ember-object';
 
 export default Ember.Service.extend({
   channels: Ember.inject.service(),
   store: Ember.inject.service(),
 
-  subscribeToList() {
-    return this.get('channels').join('conversations:index', 'lobby');
+  subscribeTo(conversationId) {
+    let store = this.get('store');
+
+    this.remoteSubscribeTo(conversationId);
+
+    return store.when(() => this.localIsReady(conversationId))
+                .then(() => this.localSubscribeTo(conversationId));
   },
 
-  subscribeToConversation(conversationId) {
+  remoteSubscribeTo(conversationId) {
     let topic = `conversations:${conversationId}`;
-    return this.get('channels').join(topic, 'conversation', conversationId);
+    let store = this.get('store');
+    store.dispatch({type: 'REQUEST_JOIN_CHANNEL', payload: { channel: topic }});
+    return this.get('channels').join(topic, 'conversation', conversationId)
+      .then(response => store.dispatch({ type: 'JOIN_CONVERSATION', conversationId, status: 'succeeded', payload: response }));
   },
 
-  getConversation(conversationId) {
-    let store = this.get('store');
-    let subscription = Ember.ObjectProxy.create({});
-
-    function update() {
-      let conversation = store.getState().conversations.getIn([conversationId]).toJS();
-      if (!conversation) throw new Error(`Conversation not found ${conversationId}`);
-      subscription.set('content', conversation);
-    }
-
-    store.subscribe(update);
-    update();
-
-    return subscription;
+  localIsReady(conversationId) {
+    return this.get('store').getState().conversations.getIn([conversationId]);
   },
 
-  getList() {
+  localSubscribeTo(conversationId) {
     let store = this.get('store');
-    let subscription = Ember.ArrayProxy.create({});
+    return store.states.map(state => state.conversations.toJS()[conversationId]).asEmberObject();
+  },
 
-    function update() {
-      let newState = store.getState().conversations.toIndexedSeq().sortBy(c => c.get('name')).toJS();
-      subscription.set('content', newState);
-    }
+  localSubscribeToList() {
+    return this.get('store').states
+      .map(state => state.conversations.toIndexedSeq().sortBy(c => c.get('name')).toJS())
+      .asEmberArray();
+  },
 
-    store.subscribe(update);
-    update();
-
-    return subscription;
+  remoteSubscribeToList() {
+    let store = this.get('store');
+    store.dispatch({type: 'REQUEST_JOIN_CHANNEL', payload: { channel: 'conversations:index' }});
+    return this.get('channels').join('conversations:index', 'lobby')
+      .then(response => store.dispatch({ type: 'JOIN_CONVERSATION_LOBBY', status: 'succeeded', payload: response }));
   },
 
   add(name) {
@@ -50,7 +51,8 @@ export default Ember.Service.extend({
     let conversation = { id: uuid.v4(), name };
     let action = { type: 'ADD_CONVERSATION', payload: conversation, channel: `conversations:index` };
 
-    return store.dispatch(action).then(() => conversation.id);
+    store.execute(action);
+    return conversation.id;
   },
 
   addMesage(conversationId, body) {
@@ -58,6 +60,6 @@ export default Ember.Service.extend({
     let message = { id: uuid.v4(), body, conversationId };
     let action = { type: 'ADD_MESSAGE', payload: message, channel: `conversations:${conversationId}` };
 
-    return store.dispatch(action).then(() => message.id);
+    return store.execute(action).then(() => message.id);
   }
 });

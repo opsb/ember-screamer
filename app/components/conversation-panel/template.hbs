@@ -1,16 +1,12 @@
-{{#if loading}}
-  <h2>Loading...</h2>
-{{else}}
-  <h2>{{conversation.name}}</h2>
+<h2>{{conversation.name}}</h2>
 
-  <ul class="messages">
-    {{#each conversation.messages as |message|}}
-      <li class="message {{message.status}}">{{message.body}}</li>
-    {{/each}}
-  </ul>
+<ul class="messages">
+  {{#each conversation.messages as |message|}}
+    <li class="message {{message.status}}">{{message.body}}</li>
+  {{/each}}
+</ul>
 
-  <div class="new-message">
-    {{input class="new-message__text" value=body placeholder="Write a message..." enter="addMessage"}}
-    <input class="new-message__button" type="submit" class="success button" value="Add" />
-  </div>
-{{/if}}
+<div class="new-message">
+  {{input class="new-message__text" value=body placeholder="Write a message..." enter="addMessage"}}
+  <input class="new-message__button" type="submit" class="success button" value="Add" />
+</div>

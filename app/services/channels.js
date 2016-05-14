@@ -8,6 +8,7 @@ function isFunction(functionToCheck) {
   return functionToCheck && getType.toString.call(functionToCheck) === '[object Function]';
 }
 
+window.latency = localStorage.latency;
 function withLatency(callback) {
   return new Ember.RSVP.Promise(resolve => {
     if (!window.latency) {
@@ -26,33 +27,48 @@ export default Ember.Service.extend({
   init() {
     this._super();
     this._channels = {};
+    this._queue = Ember.RSVP.resolve();
   },
 
   join(topic, handler, ...args) {
     let channel = this.get('socket').channel(topic);
+    let topicHandler = this._topicHandler(topic, handler, ...args);
 
+    Object.keys(topicHandler).forEach(name => {
+      channel.on(name, topicHandler[name]);
+    });
+
+    this._channels[topic] = channel;
+
+    return this._enqueue(() => {
+      return new Ember.RSVP.Promise((resolve, reject) => {
+        channel.join()
+          .receive('ok', response => resolve(response))
+          .receive('error', error => reject(error));
+      });
+    }, `join ${topic}`);
+  },
+
+  _topicHandler(topic, handler, ...args) {
     let [namespace, name] = topic.split(":");
     let owner = getOwner(this);
     let namespaceHandler = owner.lookup(`channel:${namespace}`);
     if (!namespaceHandler[handler]) throw new Error(`No handler found for topic: ${topic}`);
     let topicHandler = this._withDefaults(this._initHandler(namespaceHandler[handler], args));
 
-    Object.keys(topicHandler).forEach(name => {
-      channel.on(name, topicHandler[name].bind(namespaceHandler));
-    });
+    return Object.keys(topicHandler).reduce((boundHandler, name) => {
+      boundHandler[name] = topicHandler[name].bind(namespaceHandler);
+      return boundHandler;
+    }, {});
+  },
 
-    this._channels[topic] = channel;
-
-    return new Ember.RSVP.Promise((resolve, reject) => {
-      channel.join()
-        .receive('ok', response => {
-          topicHandler.join.call(namespaceHandler, response);
-          resolve();
-        })
-        .receive('error', error => {
-          topicHandler.joinError.call(namespaceHandler, error);
-          reject(error);
-        });
+  _enqueue(job, description = "job") {
+    console.log('enqueuing', description);
+    return this._queue = this._queue.then(() => {
+      return withLatency(() => {
+        console.log('dequeing', description);
+        return job();
+      });
     });
   },
 
@@ -67,15 +83,15 @@ export default Ember.Service.extend({
     }, handler);
   },
 
-  push(topic, handler, message) {
-    return withLatency(() => {
+  push(topic, channelMethod, message) {
+    return this._enqueue(() => {
       return new Ember.RSVP.Promise((resolve, reject) => {
-        this.getChannel(topic)
-          .push(handler, message)
+        return this.getChannel(topic)
+          .push(channelMethod, message)
           .receive('ok', payload => resolve(payload))
           .receive('error', reason => reject(reason));
       });
-    });
+    }, `push ${topic}.${channelMethod} ${message}`);
   },
 
   getChannel(topic) {

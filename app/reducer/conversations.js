@@ -61,7 +61,7 @@ const handlers = {
 
   addConversation(state, action) {
     return state.mergeDeep({
-      [action.payload.id]: Object.assign({status: action.status}, action.payload)
+      [action.payload.id]: Object.assign({status: action.status, messages: []}, action.payload)
     });
   },
 
@@ -80,6 +80,7 @@ const handlers = {
 }
 
 export default function reduce(state = Immutable.fromJS({}), action) {
+  console.log('conversationReduce', action);
   let handler = handlers[action.type.underscore().camelize()];
   return handler ? handler(state, action) : state;
 }
